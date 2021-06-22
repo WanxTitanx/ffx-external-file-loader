@@ -1,0 +1,4 @@
+LIBRARY
+EXPORTS
+	FF10HgetName
+	FF10HgetVer
