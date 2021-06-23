@@ -145,6 +145,8 @@ namespace ff10
 				filename = filename.substr(9);
 			else if (filename.substr(0, 8) == "../../..")
 				filename = filename.substr(8);
+			else if (filename[0] == '/')
+				filename = filename.substr(1);
 
 
 			for (auto pathIt = modsPaths.cbegin(); pathIt != modsPaths.cend(); ++pathIt)
