@@ -9,7 +9,8 @@ namespace ff10
 	bool FileLoader::logAccess = false;
 	FileLoader::eExecType FileLoader::execType = eExecType::eUnknown;
 	const std::vector<FileLoader::tHookInit> FileLoader::_allHooksFFX = {
-		{"hookOpenVBF", FileLoader::OPENVBFX, (intptr_t)&FileLoader::openVBFHook, {0x00, 0x89, 0x43, 0x04, 0x85}}
+		{"hookOpenVBF", FileLoader::OPENVBFX, (intptr_t)&FileLoader::openVBFHook, {0x00, 0x89, 0x43, 0x04, 0x85}},
+		{"hookCheckExists", FileLoader::CHECKEXISTSX, (intptr_t)&FileLoader::openCheckExistsHook, {0xE8, 0x9C, 0x3F, 0x01, 0x00}}
 	};
 	const std::vector<FileLoader::tPatchBytes> FileLoader::_allPatchesFFX = {
 		{"patchOpenVBFBefore", FileLoader::OPENVBFBEFOREX, {0x53, 0xFF, 0x75, 0x0C}, {0xE8, 0x1C, 0x3F, 0x01}}, //push ebx, push [ebp+0xc]
@@ -17,7 +18,8 @@ namespace ff10
 	};
 
 	const std::vector<FileLoader::tHookInit> FileLoader::_allHooksFFX2 = {
-		{"hookOpenVBF", FileLoader::OPENVBFX2, (intptr_t)&FileLoader::openVBFHook, {0x00, 0x89, 0x43, 0x04, 0x85}}
+		{"hookOpenVBF", FileLoader::OPENVBFX2, (intptr_t)&FileLoader::openVBFHook, {0x00, 0x89, 0x43, 0x04, 0x85}},
+		{"hookCheckExists", FileLoader::CHECKEXISTSX2, (intptr_t)&FileLoader::openCheckExistsHook, {0xE8, 0xDC, 0x18, 0x0B, 0x00}}
 	};
 	const std::vector<FileLoader::tPatchBytes> FileLoader::_allPatchesFFX2 = {
 		{"patchOpenVBFBefore", FileLoader::OPENVBFBEFOREX2, {0x53, 0xFF, 0x75, 0x0C}, {0xE8, 0x4C, 0x18, 0x0B}}, //push ebx, push [ebp+0xc]
@@ -154,7 +156,6 @@ namespace ff10
 				const auto filePath = *pathIt / filename;
 				if (std::filesystem::exists(filePath))
 				{
-					auto nameLength = filePath.string().length();
 					if (logAccess) LOG(INFO) << "Reading DIR: " << filePath.string();
 					result[1] = 0;
 					if (readAccess)
@@ -186,6 +187,38 @@ namespace ff10
 		}
 		result[1] = openVBFModule(thisPtr, path);
 		return 0;
+	}
+
+	int __thiscall FileLoader::openCheckExistsHook(void* thisPtr, char* path)
+	{
+		openFMVType openFMVModule = (openFMVType)((execType == eExecType::eFFX ? checkExistsX : checkExistsX2) + moduleBase);
+		try
+		{
+			std::string filename(path);
+			if (filename.substr(0, 9) == "../../../")
+				filename = filename.substr(9);
+			else if (filename.substr(0, 8) == "../../..")
+				filename = filename.substr(8);
+			else if (filename[0] == '/')
+				filename = filename.substr(1);
+
+
+			for (auto pathIt = modsPaths.cbegin(); pathIt != modsPaths.cend(); ++pathIt)
+			{
+				const auto filePath = *pathIt / filename;
+				if (std::filesystem::exists(filePath))
+				{
+					if (logAccess) LOG(INFO) << "Exists DIR: " << filePath.string();
+					return 1;
+				}
+			}
+
+			if (logAccess) LOG(INFO) << "Exists VBF: " << filename;
+		}
+		catch (...)
+		{
+		}
+		return openFMVModule(thisPtr, path);
 	}
 
 	void FileLoader::testGameVersion()

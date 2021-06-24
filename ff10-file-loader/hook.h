@@ -17,20 +17,26 @@ namespace ff10
 	private:
 		//original functions to call in hooks
 		using openVBFType = int (__thiscall *)(void* thisPtr, char* filename);
+		using openFMVType = int(__thiscall*)(void* thisPtr, char* filename);
 		static constexpr intptr_t openVBFX = (0x61C0D0-0x400000);
 		static constexpr intptr_t openVBFX2 = (0x942BA0 - 0x400000);
+		static constexpr intptr_t checkExistsX = (0x6DC000 - 0x4C0000);
+		static constexpr intptr_t checkExistsX2 = (0x942AD0 - 0x400000);
 
 		//addresses of calls to hook
 		static constexpr intptr_t OPENVBFBEFOREX = (0x6081AF - 0x400000);
 		static constexpr intptr_t OPENVBFAFTERX = (0x6081B8 - 0x400000);
 		static constexpr intptr_t OPENVBFX = (0x6081B3 - 0x400000);
+		static constexpr intptr_t CHECKEXISTSX = (0x6C805F - 0x4C0000);
 
 		static constexpr intptr_t OPENVBFBEFOREX2 = (0x89134F - 0x400000);
 		static constexpr intptr_t OPENVBFAFTERX2 = (0x891358 - 0x400000);
 		static constexpr intptr_t OPENVBFX2 = (0x891353 - 0x400000);
+		static constexpr intptr_t CHECKEXISTSX2 = (0x8911EF - 0x400000);
 
 		//hook functions
 		static int __thiscall openVBFHook(void* thisPtr, int readAccess, int* result, char* path);
+		static int __thiscall openCheckExistsHook(void* thisPtr, char* path);
 
 
 		//helper functions
