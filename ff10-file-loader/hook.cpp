@@ -135,7 +135,7 @@ namespace ff10
 	/**
 	* filename is normalized at this point to use slashes
 	*/
-	int __thiscall FileLoader::openVBFHook(void* thisPtr, int type, int* result, char* path)
+	int __thiscall FileLoader::openVBFHook(void* thisPtr, int readAccess, int* result, char* path)
 	{
 		openVBFType openVBFModule = (openVBFType)((execType == eExecType::eFFX ? openVBFX : openVBFX2) + moduleBase);
 		try
@@ -157,17 +157,17 @@ namespace ff10
 					auto nameLength = filePath.string().length();
 					if (logAccess) LOG(INFO) << "Reading DIR: " << filePath.string();
 					result[1] = 0;
-					if (type)
+					if (readAccess)
 					{
-						result[0] = (int)CreateFileW(filePath.wstring().c_str(), 1u, 1u, 0, 3u, 0x8000000u, 0);
+						result[0] = (int)CreateFileW(filePath.wstring().c_str(), FILE_READ_DATA, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 						if (result[0] != -1)
 							return 0;
 					} else
-					{
-						result[0] = (int)CreateFileW(filePath.wstring().c_str(), 2u, 0, 0, 4u, 0x8000000u, 0);
+					{//not sure yet whether it actually ever reaches this, seems to be a bit weird, but lets keep it the way the game does for now
+						result[0] = (int)CreateFileW(filePath.wstring().c_str(), FILE_WRITE_DATA, 0, NULL, OPEN_ALWAYS, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 						if (result[0] != -1)
 							return 0;
-						result[0] = (int)CreateFileW(filePath.wstring().c_str(), 1u, 1u, 0, 3u, 0x8000000u, 0);
+						result[0] = (int)CreateFileW(filePath.wstring().c_str(), FILE_READ_DATA, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 						if (result[0] != -1)
 						{
 							CloseHandle((HANDLE)result[0]);

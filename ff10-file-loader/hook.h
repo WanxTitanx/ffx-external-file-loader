@@ -30,7 +30,7 @@ namespace ff10
 		static constexpr intptr_t OPENVBFX2 = (0x891353 - 0x400000);
 
 		//hook functions
-		static int __thiscall openVBFHook(void* thisPtr, int type, int* result, char* path);
+		static int __thiscall openVBFHook(void* thisPtr, int readAccess, int* result, char* path);
 
 
 		//helper functions
