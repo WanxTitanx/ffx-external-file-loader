@@ -28,11 +28,13 @@ namespace ff10
 		static constexpr intptr_t OPENVBFAFTERX = (0x6081B8 - 0x400000);
 		static constexpr intptr_t OPENVBFX = (0x6081B3 - 0x400000);
 		static constexpr intptr_t CHECKEXISTSX = (0x6C805F - 0x4C0000);
+		static constexpr intptr_t CHECKVBFX = (0x7397AE - 0x4C0000);
 
 		static constexpr intptr_t OPENVBFBEFOREX2 = (0x89134F - 0x400000);
 		static constexpr intptr_t OPENVBFAFTERX2 = (0x891358 - 0x400000);
 		static constexpr intptr_t OPENVBFX2 = (0x891353 - 0x400000);
 		static constexpr intptr_t CHECKEXISTSX2 = (0x8911EF - 0x400000);
+		static constexpr intptr_t CHECKVBFX2 = (0x494C6E - 0x400000);
 
 		//hook functions
 		static int __thiscall openVBFHook(void* thisPtr, int readAccess, int* result, char* path);
@@ -65,6 +67,7 @@ namespace ff10
 		static intptr_t moduleBase;
 		static std::vector<std::filesystem::path> modsPaths;
 		static bool logAccess;
+		static bool allowNoVbf;
 		
 		enum class eExecType
 		{

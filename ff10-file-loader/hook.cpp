@@ -7,6 +7,7 @@ namespace ff10
 	intptr_t FileLoader::moduleBase = 0;
 	std::vector<std::filesystem::path> FileLoader::modsPaths = { "data/mods" };
 	bool FileLoader::logAccess = false;
+	bool FileLoader::allowNoVbf = false;
 	FileLoader::eExecType FileLoader::execType = eExecType::eUnknown;
 	const std::vector<FileLoader::tHookInit> FileLoader::_allHooksFFX = {
 		{"hookOpenVBF", FileLoader::OPENVBFX, (intptr_t)&FileLoader::openVBFHook, {0x00, 0x89, 0x43, 0x04, 0x85}},
@@ -14,7 +15,8 @@ namespace ff10
 	};
 	const std::vector<FileLoader::tPatchBytes> FileLoader::_allPatchesFFX = {
 		{"patchOpenVBFBefore", FileLoader::OPENVBFBEFOREX, {0x53, 0xFF, 0x75, 0x0C}, {0xE8, 0x1C, 0x3F, 0x01}}, //push ebx, push [ebp+0xc]
-		{"patchOpenVBFAfter", FileLoader::OPENVBFAFTERX, {0xEB, 0x79}, {0xC0, 0x75}} //jmp return
+		{"patchOpenVBFAfter", FileLoader::OPENVBFAFTERX, {0xEB, 0x79}, {0xC0, 0x75}}, //jmp return
+		{"patchCheckVBF", FileLoader::CHECKVBFX, {0xEB, 0x70}, {0x75, 0x70}} //jmp after vbf check
 	};
 
 	const std::vector<FileLoader::tHookInit> FileLoader::_allHooksFFX2 = {
@@ -23,7 +25,8 @@ namespace ff10
 	};
 	const std::vector<FileLoader::tPatchBytes> FileLoader::_allPatchesFFX2 = {
 		{"patchOpenVBFBefore", FileLoader::OPENVBFBEFOREX2, {0x53, 0xFF, 0x75, 0x0C}, {0xE8, 0x4C, 0x18, 0x0B}}, //push ebx, push [ebp+0xc]
-		{"patchOpenVBFAfter", FileLoader::OPENVBFAFTERX2, {0xEB, 0x79}, {0xC0, 0x75}} //jmp return
+		{"patchOpenVBFAfter", FileLoader::OPENVBFAFTERX2, {0xEB, 0x79}, {0xC0, 0x75}}, //jmp return
+		{"patchCheckVBF", FileLoader::CHECKVBFX2, {0xEB, 0x70}, {0x75, 0x70}} //jmp after vbf check
 	};
 
 	bool FileLoader::testPatchesHooks()
@@ -69,6 +72,8 @@ namespace ff10
 		for (const auto& patch : _allPatches)
 		{
 			if (!patch.patch.size()) continue;
+			if (!allowNoVbf && patch.name == "patchCheckVBF") continue;
+
 			if (!WriteProcessMemory(hProcess, (LPVOID)(patch.addr+moduleBase), patch.patch.data(), patch.patch.size(), NULL))
 			{
 				LOG(ERR) << "Unable to write " << patch.name;
@@ -80,7 +85,7 @@ namespace ff10
 			intptr_t hookAddr = intptr_t(hook.hookPtr);
 			uint8_t callType = 0xe8;
 			int32_t callRelativeAddr = int32_t(hookAddr - (hook.callPtr + moduleBase + 5));
-			LOG(INFO) << "Addr: " << std::hex << callRelativeAddr << ", " << hookAddr << ", " << hook.callPtr + moduleBase;
+
 			if (!WriteProcessMemory(hProcess, (LPVOID)(hook.callPtr + moduleBase + 0), &callType, 1, NULL)
 				|| !WriteProcessMemory(hProcess, (LPVOID)(hook.callPtr + moduleBase + 1), &callRelativeAddr, 4, NULL))
 			{
@@ -105,6 +110,11 @@ namespace ff10
 	{
 		std::wstring configPath = modulePath / "config" / "ff10-file-loader.ini";
 		wchar_t buffer[512];
+		if (GetPrivateProfileStringW(L"General", L"allowNoVbf", L"false", buffer, _countof(buffer), configPath.c_str()))
+		{
+			if (std::wstring(buffer) == L"true")
+				allowNoVbf = true;
+		}
 		if (GetPrivateProfileStringW(L"Logging", L"logAccess", L"false", buffer, _countof(buffer), configPath.c_str()))
 		{
 			if (std::wstring(buffer) == L"true")
