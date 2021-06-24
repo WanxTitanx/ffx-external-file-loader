@@ -1,7 +1,7 @@
 #pragma once
 
 #define VER_MAJOR 1
-#define VER_MINOR 0
+#define VER_MINOR 1
 #define VER_STEP 0
 
 #define _STRVERHELP(val) #val
