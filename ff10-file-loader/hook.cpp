@@ -201,7 +201,7 @@ namespace ff10
 
 	int __thiscall FileLoader::openCheckExistsHook(void* thisPtr, char* path)
 	{
-		openFMVType openFMVModule = (openFMVType)((execType == eExecType::eFFX ? checkExistsX : checkExistsX2) + moduleBase);
+		checkExistsType checkExistsModule = (checkExistsType)((execType == eExecType::eFFX ? checkExistsX : checkExistsX2) + moduleBase);
 		try
 		{
 			std::string filename(path);
@@ -228,7 +228,7 @@ namespace ff10
 		catch (...)
 		{
 		}
-		return openFMVModule(thisPtr, path);
+		return checkExistsModule(thisPtr, path);
 	}
 
 	void FileLoader::testGameVersion()

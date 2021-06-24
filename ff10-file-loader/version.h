@@ -2,7 +2,7 @@
 
 #define VER_MAJOR 1
 #define VER_MINOR 1
-#define VER_STEP 0
+#define VER_STEP 1
 
 #define _STRVERHELP(val) #val
 #define _STRVER(val) _STRVERHELP(val)

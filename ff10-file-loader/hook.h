@@ -17,7 +17,7 @@ namespace ff10
 	private:
 		//original functions to call in hooks
 		using openVBFType = int (__thiscall *)(void* thisPtr, char* filename);
-		using openFMVType = int(__thiscall*)(void* thisPtr, char* filename);
+		using checkExistsType = int(__thiscall*)(void* thisPtr, char* filename);
 		static constexpr intptr_t openVBFX = (0x61C0D0-0x400000);
 		static constexpr intptr_t openVBFX2 = (0x942BA0 - 0x400000);
 		static constexpr intptr_t checkExistsX = (0x6DC000 - 0x4C0000);
