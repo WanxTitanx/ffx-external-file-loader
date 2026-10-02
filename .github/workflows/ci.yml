@@ -1,0 +1,35 @@
+name: build-and-test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  profiles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --parallel 2
+      - run: ctest --test-dir build --output-on-failure
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
+      - run: cmake --build build --config Release --parallel 2
+      - run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package with original license notices
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory package/modules/config | Out-Null
+          Copy-Item build/bin/Release/ff10-file-loader.dll package/modules/
+          Copy-Item config/ff10-file-loader.ini package/modules/config/
+          Copy-Item LICENSE,README.md,PROVENANCE.md package/
+          Copy-Item ff10-file-loader/external/LICENSE package/SIMPLELOG-LICENSE
+          Compress-Archive -Path package/* -DestinationPath build/ff10-file-loader-steam.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ff10-file-loader-steam
+          path: build/ff10-file-loader-steam.zip

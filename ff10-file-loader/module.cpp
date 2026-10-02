@@ -4,7 +4,7 @@
 
 const char* FF10HgetName()
 {
-	static const char moduleName[] = "FFX External File Loader by ffgriever";
+	static const char moduleName[] = "FFX External File Loader by ffgriever (Steam compatibility fork, Jarvis-HOOK)";
 	return moduleName;
 }
 

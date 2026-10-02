@@ -338,3 +338,13 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+# Private fixtures, IDA databases, generated binaries and local evidence.
+/work/
+/build/
+*.i64
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
+*.pending

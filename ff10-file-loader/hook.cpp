@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "hook.h"
+#include "profile_runtime.h"
 
 namespace ff10
 {
@@ -8,91 +9,35 @@ namespace ff10
 	std::vector<std::filesystem::path> FileLoader::modsPaths = { "data/mods" };
 	bool FileLoader::logAccess = false;
 	bool FileLoader::allowNoVbf = false;
+	bool FileLoader::enabled = false;
+	const profiles::Profile* FileLoader::activeProfile = nullptr;
 	FileLoader::eExecType FileLoader::execType = eExecType::eUnknown;
-	const std::vector<FileLoader::tHookInit> FileLoader::_allHooksFFX = {
-		{"hookOpenVBF", FileLoader::OPENVBFX, (intptr_t)&FileLoader::openVBFHook, {0x00, 0x89, 0x43, 0x04, 0x85}},
-		{"hookCheckExists", FileLoader::CHECKEXISTSX, (intptr_t)&FileLoader::openCheckExistsHook, {0xE8, 0x9C, 0x3F, 0x01, 0x00}}
-	};
-	const std::vector<FileLoader::tPatchBytes> FileLoader::_allPatchesFFX = {
-		{"patchOpenVBFBefore", FileLoader::OPENVBFBEFOREX, {0x53, 0xFF, 0x75, 0x0C}, {0xE8, 0x1C, 0x3F, 0x01}}, //push ebx, push [ebp+0xc]
-		{"patchOpenVBFAfter", FileLoader::OPENVBFAFTERX, {0xEB, 0x79}, {0xC0, 0x75}}, //jmp return
-		{"patchCheckVBF", FileLoader::CHECKVBFX, {0xEB, 0x70}, {0x75, 0x70}} //jmp after vbf check
-	};
-
-	const std::vector<FileLoader::tHookInit> FileLoader::_allHooksFFX2 = {
-		{"hookOpenVBF", FileLoader::OPENVBFX2, (intptr_t)&FileLoader::openVBFHook, {0x00, 0x89, 0x43, 0x04, 0x85}},
-		{"hookCheckExists", FileLoader::CHECKEXISTSX2, (intptr_t)&FileLoader::openCheckExistsHook, {0xE8, 0xDC, 0x18, 0x0B, 0x00}}
-	};
-	const std::vector<FileLoader::tPatchBytes> FileLoader::_allPatchesFFX2 = {
-		{"patchOpenVBFBefore", FileLoader::OPENVBFBEFOREX2, {0x53, 0xFF, 0x75, 0x0C}, {0xE8, 0x4C, 0x18, 0x0B}}, //push ebx, push [ebp+0xc]
-		{"patchOpenVBFAfter", FileLoader::OPENVBFAFTERX2, {0xEB, 0x79}, {0xC0, 0x75}}, //jmp return
-		{"patchCheckVBF", FileLoader::CHECKVBFX2, {0xEB, 0x70}, {0x75, 0x70}} //jmp after vbf check
-	};
-
 	bool FileLoader::testPatchesHooks()
 	{
 		testGameVersion();
-		if (execType == eExecType::eUnknown)
-			return false;
-
-		const auto& _allPatches = execType == eExecType::eFFX ? _allPatchesFFX : _allPatchesFFX2;
-		const auto& _allHooks = execType == eExecType::eFFX ? _allHooksFFX : _allHooksFFX2;
-		for (const auto& patch : _allPatches)
-		{
-			if (patch.original.size() && memcmp((void*)(patch.addr+moduleBase), patch.original.data(), patch.original.size()) != 0)
-			{
-				LOG(ERR) << "Invalid original bytes for " << patch.name;
-				return false;
-			}
-		}
-		for (const auto& hook : _allHooks)
-		{
-			if (memcmp((void*)(hook.callPtr+moduleBase), hook.original, 5) != 0)
-			{
-				LOG(ERR) << "Invalid original bytes for " << hook.name;
-				return false;
-			}
-		}
-		return true;
+		return activeProfile != nullptr;
 	}
 
 	bool FileLoader::initPatchesHooks()
 	{
-		if (!testPatchesHooks())
-		{
-			LOG(ERR) << "Invalid game version. Unable to find proper hook values.";
+		if (!enabled) { LOG(INFO) << "File loader disabled; set General/enabled=1 to opt in."; return false; }
+		if (!testPatchesHooks()) { LOG(ERR) << "Unsupported, modified or conflicting executable; no file patches installed."; return false; }
+		const auto& p = *activeProfile;
+		std::array<PatchWrite,5> writes{};
+		writes[0] = {p.sites[0].rva,4,{0x53,0xFF,0x75,0x0C,0}};
+		writes[1] = {p.sites[1].rva,5,{0xE8,0,0,0,0}};
+		writes[2] = {p.sites[2].rva,2,{0xEB,0x79,0,0,0}};
+		writes[3] = {p.sites[3].rva,5,{0xE8,0,0,0,0}};
+		writes[4] = {p.sites[4].rva,2,{0xEB,0x70,0,0,0}};
+		const std::uint32_t openDelta = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&FileLoader::openVBFHook) - (moduleBase+p.sites[1].rva+5));
+		const std::uint32_t existsDelta = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&FileLoader::openCheckExistsHook) - (moduleBase+p.sites[3].rva+5));
+		std::memcpy(writes[1].replacement.data()+1,&openDelta,4);
+		std::memcpy(writes[3].replacement.data()+1,&existsDelta,4);
+		if (!ApplyPatchTransaction(moduleBase,p,writes.data(),allowNoVbf?5:4)) {
+			LOG(ERR) << "File-loader patch transaction rejected; no partial installation admitted.";
 			return false;
 		}
-
-		const auto& _allPatches = execType == eExecType::eFFX ? _allPatchesFFX : _allPatchesFFX2;
-		const auto& _allHooks = execType == eExecType::eFFX ? _allHooksFFX : _allHooksFFX2;
-
-		HANDLE hProcess = GetCurrentProcess();
-
-		for (const auto& patch : _allPatches)
-		{
-			if (!patch.patch.size()) continue;
-			if (!allowNoVbf && patch.name == "patchCheckVBF") continue;
-
-			if (!WriteProcessMemory(hProcess, (LPVOID)(patch.addr+moduleBase), patch.patch.data(), patch.patch.size(), NULL))
-			{
-				LOG(ERR) << "Unable to write " << patch.name;
-				return false;
-			}
-		}
-		for (const auto& hook : _allHooks)
-		{
-			intptr_t hookAddr = intptr_t(hook.hookPtr);
-			uint8_t callType = 0xe8;
-			int32_t callRelativeAddr = int32_t(hookAddr - (hook.callPtr + moduleBase + 5));
-
-			if (!WriteProcessMemory(hProcess, (LPVOID)(hook.callPtr + moduleBase + 0), &callType, 1, NULL)
-				|| !WriteProcessMemory(hProcess, (LPVOID)(hook.callPtr + moduleBase + 1), &callRelativeAddr, 4, NULL))
-			{
-				LOG(ERR) << "Unable to write " << hook.name;
-				return false;
-			}
-		}
+		LOG(INFO) << "File loader ready: " << p.name << "; native byte/callee witnesses and file SHA-256 verified.";
 		return true;
 	}
 
@@ -110,6 +55,7 @@ namespace ff10
 	{
 		std::wstring configPath = modulePath / "config" / "ff10-file-loader.ini";
 		wchar_t buffer[512];
+		enabled = GetPrivateProfileIntW(L"General", L"enabled", 0, configPath.c_str()) == 1;
 		if (GetPrivateProfileStringW(L"General", L"allowNoVbf", L"false", buffer, _countof(buffer), configPath.c_str()))
 		{
 			if (std::wstring(buffer) == L"true")
@@ -149,7 +95,8 @@ namespace ff10
 	*/
 	int __thiscall FileLoader::openVBFHook(void* thisPtr, int readAccess, int* result, char* path)
 	{
-		openVBFType openVBFModule = (openVBFType)((execType == eExecType::eFFX ? openVBFX : openVBFX2) + moduleBase);
+		if (!activeProfile || !path || !*path) return 10;
+		openVBFType openVBFModule = (openVBFType)(activeProfile->openVbf + moduleBase);
 		try
 		{
 			std::string filename(path);
@@ -201,7 +148,8 @@ namespace ff10
 
 	int __thiscall FileLoader::openCheckExistsHook(void* thisPtr, char* path)
 	{
-		checkExistsType checkExistsModule = (checkExistsType)((execType == eExecType::eFFX ? checkExistsX : checkExistsX2) + moduleBase);
+		if (!activeProfile || !path || !*path) return 0;
+		checkExistsType checkExistsModule = (checkExistsType)(activeProfile->checkExists + moduleBase);
 		try
 		{
 			std::string filename(path);
@@ -233,15 +181,8 @@ namespace ff10
 
 	void FileLoader::testGameVersion()
 	{
-		if (_allPatchesFFX[0].original.size() && memcmp((void*)(_allPatchesFFX[0].addr + moduleBase), _allPatchesFFX[0].original.data(), _allPatchesFFX[0].original.size()) == 0)
-		{
-			execType = eExecType::eFFX;
-			LOG(INFO) << "FFX detected";
-		} else if (_allPatchesFFX2[0].original.size() && memcmp((void*)(_allPatchesFFX2[0].addr + moduleBase), _allPatchesFFX2[0].original.data(), _allPatchesFFX2[0].original.size()) == 0)
-		{
-			execType = eExecType::eFFX2;
-			LOG(INFO) << "FFX-2 detected";
-		}
+		activeProfile = SelectVerifiedProfile(static_cast<std::uintptr_t>(moduleBase));
+		execType = !activeProfile ? eExecType::eUnknown : (activeProfile->x2 ? eExecType::eFFX2 : eExecType::eFFX);
 	}
 
 }
